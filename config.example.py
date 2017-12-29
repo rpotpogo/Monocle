@@ -191,6 +191,22 @@ INCUBATE_EGGS = True      # incubate eggs if available
 # None will never encounter Pokémon
 ENCOUNTER = None
 #ENCOUNTER_IDS = (3, 6, 9, 45, 62, 71, 80, 85, 87, 89, 91, 94, 114, 130, 131, 134)
+TRASHENCOUNTER_IDS = []
+for i in range(1, 386):
+    if  i not in ENCOUNTER_IDS:
+        TRASHENCOUNTER_IDS.append(i)
+#ditto scanning 16, 19, 41,  161, 163, 193, //129,
+
+# MUST MATCH YOUR PGSCOUT CONFIG.JSON.  Will encounter based on ENCOUNTER_IDs above.  
+# If encounter fails, worker.py will revert to the original worker with the sighting and encounter
+# but will not return any move/IV data (so your hooks dont get improper info)
+PGSCOUT_ENDPOINT = {'http://127.0.0.1:4242/iv'}
+PGSCOUT_PORT_CATCHDITTO ='4244'
+# Set the connection timeout to wait on a response from PGScout.  Default is 36 seconds.
+# Timeout will be connection dependent, proxy dependent, etc.  I recommend keeping it at the default.
+# Going too high will certainly guarantee a response from a Scout but will lead to greater inefficiency
+# and instability for Monocle
+#PGSCOUT_TIMEOUT = 36
 
 # PokéStops
 SPIN_POKESTOPS = True  # spin all PokéStops that are within range
@@ -237,7 +253,7 @@ REFRESH_RATE = 0.75  # 750ms
 STAT_REFRESH = 5
 
 # sent with GET_PLAYER requests, should match your region
-PLAYER_LOCALE = {'country': 'US', 'language': 'en', 'timezone': 'America/Denver'}
+PLAYER_LOCALE = {'country': 'US', 'language': 'en', 'timezone': 'America/Los_Angeles'}
 
 # retry a request after failure this many times before giving up
 MAX_RETRIES = 3
@@ -348,20 +364,20 @@ SHOW_TIMER = False  # Show remaining time on a label under each pokemon marker
 SHOW_TIMER_RAIDS = True  # Show remaining time on a label under each raid marker
 
 ### OPTIONS BELOW THIS POINT ARE ONLY NECESSARY FOR NOTIFICATIONS ###
-NOTIFY = False  # enable notifications
+NOTIFY = True  # enable notifications
 
 # notify gyms data updates to webhooks
-#NOTIFY_GYMS_WEBHOOK = False
+NOTIFY_GYMS_WEBHOOK = True
 
 # create images with Pokémon image and optionally include IVs and moves
 # requires cairo and ENCOUNTER = 'notifying' or 'all'
-TWEET_IMAGES = True
+TWEET_IMAGES = False
 # IVs and moves are now dependant on level, so this is probably not useful
 IMAGE_STATS = False
 
 # As many hashtags as can fit will be included in your tweets, these will
 # be combined with landmark-specific hashtags (if applicable).
-HASHTAGS = {AREA_NAME, 'Monocle', 'PokemonGO'}
+#HASHTAGS = {AREA_NAME, 'Monocle', 'PokemonGO'}
 #TZ_OFFSET = 0  # UTC offset in hours (if different from system time)
 
 # the required number of seconds remaining to notify about a Pokémon
@@ -370,7 +386,7 @@ TIME_REQUIRED = 600  # 10 minutes
 ### Only set either the NOTIFY_RANKING or NOTIFY_IDS, not both!
 # The (x) rarest Pokémon will be eligible for notification. Whether a
 # notification is sent or not depends on its score, as explained below.
-NOTIFY_RANKING = 90
+#NOTIFY_RANKING = 90
 
 # Pokémon to potentially notify about, in order of preference.
 # The first in the list will have a rarity score of 1, the last will be 0.
@@ -381,8 +397,52 @@ NOTIFY_RANKING = 90
 ALWAYS_NOTIFY = 14
 
 # Always notify about the following Pokémon even if their time remaining or scores are not high enough
-#ALWAYS_NOTIFY_IDS = {89, 130, 144, 145, 146, 150, 151}
+IV_FILTER = {1:97, 2:90, 3:0, 4:97, 5:90, 6:0, 7:97, 8:90, 9:0, 
+10:100, 11:100, 12:0,   13:100, 14:100, 15:0,   16:100, 17:100, 18:0,   19:100, 
+20:100, 21:100, 22:100, 23:100, 24:100, 25:100, 26:100, 27:100, 28:100, 29:100, 
+30:100, 31:0,   32:100, 33:100, 34:0,   35:100, 36:90,  37:100, 38:100, 39:100, 
+40:90,  41:100, 42:100, 43:97,  44:97,  45:0,   46:100, 47:100, 48:100, 49:100,
+50:100, 51:100, 52:100, 53:100, 54:100, 55:100, 56:100, 57:100, 58:100, 59:100, 
+60:100, 61:95,  62:0,   63:97,  64:97,  65:0,   66:95,  67:95,  68:0,   69:100, 
+70:100, 71:0,   72:100, 73:100, 74:95,  75:95,  76:0,  77:100, 78:100, 79:100, 
+80:90,  81:100, 82:95,  83:95,   84:100, 85:100, 86:97,  87:81,  88:81,  89:81, 
+90:97,  91:81,  92:97,  93:81,  94:0,   95:97,  96:100, 97:100, 98:100, 99:100, 
+100:100, 101:100, 102:97,  103:81,  104:100, 105:100, 106:90,  107:90,  108:100, 109:100, 
+110:100, 111:97,  112:81,  113:0,   114:97,  115:0,   116:100, 117:100, 118:100, 119:100, 
+120:100, 121:100, 122:0,   123:90,  124:90,  125:97,  126:97,  127:100, 128:90,  129:100, 
+130: 81, 131: 0,  132:100, 133:97,  134: 81, 135:100, 136:100, 137:81,  138:97,  139:97,
+140:97,  141:97,  142:81,  143:0,   144:0,   145:0,   146:0,   147:0,   148: 0,  149:0, 
+150:0,   151: 0,  152: 97, 153:90,  154:0,   155:97,  156:90,  157:0,   158: 97, 159:90, 
+160:0,   161:100, 162:100, 163:100, 164:100, 165:100, 166:100, 167:100, 168:100, 169:0, 
+170:97,  171:97,  172: 0,  173: 0,  174: 0,  175: 0,  176: 81, 177:100, 178:100, 179:0, 
+180:0,   181:0,   182: 81, 183:100, 184:100, 185: 97, 186: 81, 187:100, 188: 97, 189:0,
+190:100, 191:100, 192:81,  193:100, 194:100, 195:100, 196:81,  197: 81, 198:100, 199:81, 
+200:100, 201: 0,  202:97,  203: 97, 204: 97, 205: 90, 206:100, 207: 97, 208:81,  209:100,
+210:100, 211: 97, 212: 81, 213: 97, 214: 0,  215: 97, 216: 97, 217: 90, 218:100, 219:97, 
+220: 97, 221: 81, 222: 0,  223: 97, 224: 95, 225: 97,  226: 97, 227: 97, 228:100, 229:97,
+230: 81, 231: 97, 232: 81, 233: 81, 234: 97, 235: 0,  236: 0,  237: 90, 238:0,   239:0, 
+240: 0,  241: 97, 242: 0,  243: 0,  244: 0,  245: 0,  246: 0,  247: 0,  248: 0,  249:0, 
+250: 0,  251: 0,  
+252:97,  253:90,  254:0,   255:97,  256:90,  257:0,   258:97,  259:90, 
+260:0,   261:100, 262:97,  263:100, 264:100, 265:97,  266:90,  267:0,   268:90,  269:0, 
+270:0,   271:0,   272:0,   273:100, 274:97,  275:0,   276:97,  277:81,  278:97,  279:81, 
+280:0,   281:0,   282:0,   283:97,  284:81,  285:97,  286:81,  287:0,  288:0,  289:0, 
+290:97,  291:81,  292:81,  293:97,  294:90,  295:0,   296:97,  297:81,  298:97,  299:97, 
+300:97,  301:81,  302:100, 303:97,  304:97,  305:90,  306:0,   307:97,  308:81,  309:97, 
+310:81,  311:97,  312:97,  313:97,  314:97,  315:97,  316:97,  317:81,  318:97,  319:81, 
+320:97,  321:81,  322:97,  323:81,  324:97,  325:97,  326:81,  327:97,  328:97,  329:90, 
+330:0,   331:97,  332:81,  333:97,  334:81,  335:97,  336:97,  337:97,  338:97,  339:97, 
+340:81,  341:97,  342:81,  343:97,  344:81,  345:97,  346:81,  347:97,  348:81,  349:0, 
+350:0,  351:97,  352:97,  353:100, 354:100, 355:100, 356:100, 357:97,  358:97,  359:97, 
+360:97,  361:97,  362:81,  363:97,  364:90,  365:0,   366:97,  367:81,  368:81,  369:97, 
+370:97,  371:90,  372:90,  373:0,   374:90,  375:90,  376:0,   377:0,   378:0,   379:0, 
+380:0,   381:0,   382:0,   383:0,   384:0,   385:0,   386:0
+}
 
+#ALWAYS_NOTIFY_IDS = set (ENCOUNTER_IDS)
+ALWAYS_NOTIFY_IDS = set (range(1,387))
+
+#ditto scanning 16, 19, 41, 129, 161, 163, 193,
 # Never notify about the following Pokémon, even if they would otherwise be eligible
 #NEVER_NOTIFY_IDS = TRASH_IDS
 
@@ -456,10 +516,10 @@ ALWAYS_NOTIFY = 14
 #RARITY_OVERRIDE = {148: 0.6, 149: 0.9}
 
 # Ignore IV score and only base decision on rarity score (default if IVs not known)
-#IGNORE_IVS = False
+IGNORE_IVS = True
 
 # Ignore rarity score and only base decision on IV score
-#IGNORE_RARITY = False
+IGNORE_RARITY = True
 
 # The Pokémon score required to notify goes on a sliding scale from INITIAL_SCORE
 # to MINIMUM_SCORE over the course of FULL_TIME seconds following a notification

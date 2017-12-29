@@ -1017,16 +1017,16 @@ class Worker:
                         (not self.player_level or self.player_level < 30))
                 should_notify = self.should_notify(normalized)
                 should_encounter = (sp_discovered and self.should_encounter(normalized, should_notify=should_notify))
-                    
+                should_encounter_pgscout = (sp_discovered and self.should_encounter_pgscout(normalized, should_notify=should_notify))
                 if encounter_id:
-                    cache = self.overseer.ENCOUNTER_CACHE if should_encounter else SIGHTING_CACHE
+                    cache = self.overseer.ENCOUNTER_CACHE if (should_encounter or should_encounter_pgscout) else SIGHTING_CACHE
                     if self.should_skip_sighting(normalized, cache):
                         continue
 
                 encountered = False
 
-                if (self.overseer.running and should_encounter):
-                    if should_delegate_encounter:
+                if (self.overseer.running and (should_encounter or should_encounter_pgscout) ):
+                    if should_delegate_encounter and not should_encounter_pgscout:
                         if (normalized not in self.overseer.ENCOUNTER_CACHE and
                                 'expire_timestamp' in normalized and
                                 normalized['expire_timestamp']):
@@ -1066,7 +1066,7 @@ class Worker:
                             self.log.warning('{} during encounter by {}', e.__class__.__name__, self.username)
                             raise e
 
-                    if not encountered and conf.PGSCOUT_ENDPOINT:
+                    if not encountered and should_encounter_pgscout and conf.PGSCOUT_ENDPOINT:
                         async with ClientSession(loop=LOOP) as session:
                             encountered = await self.pgscout(session, normalized, pokemon.spawn_point_id)
 
@@ -1302,6 +1302,9 @@ class Worker:
         should_notify_with_iv = (should_notify and not conf.IGNORE_IVS)
         return (encounter_whitelisted or should_notify_with_iv)
 
+    def should_encounter_pgscout(self, sighting, should_notify):
+        return (sighting['pokemon_id'] in conf.TRASHENCOUNTER_IDS)
+
     async def pgscout(self, session, pokemon, spawn_id):
         PGScout_address=next(self.PGScout_cycle)
         try:
@@ -1326,6 +1329,45 @@ class Worker:
                 pokemon['form'] = response.get('form')
                 pokemon['cp'] = response.get('cp')
                 pokemon['level'] = calc_pokemon_level(response.get('cp_multiplier'))
+                pokemon['ditto'] = 'unknown'
+                iv = float(int(pokemon['individual_attack']) + int(pokemon['individual_defense']) + int(pokemon['individual_stamina'])) / 0.45
+                session = SessionManager.get()
+                dittomons = [16, 19, 41, 161, 163, 193]
+                id = pokemon['pokemon_id']
+                if (iv > 99.9) and id in dittomons:
+                    self.log.info("catching mon to verify if it's a ditto...")
+                    try:
+                        session = SessionManager.get()
+                        async with session.get(
+                              'http://127.0.0.1:' + conf.PGSCOUT_PORT_CATCHDITTO + '/ditto',
+                               params={'pokemon_id': id,
+                                'encounter_id': pokemon['encounter_id'],
+                                'spawn_point_id': spawn_id,
+                                'latitude': str(pokemon['lat']),
+                                'longitude': str(pokemon['lon'])},
+                                timeout=conf.PGSCOUT_TIMEOUT) as resp:
+                            responsecatch = await resp.json(loads=json_loads)
+                        try:
+                            if (responsecatch['success'] == True):
+                                if (responsecatch['ditto'] == True):
+                                    pokemon['ditto'] = 'True'
+                                else:
+                                    pokemon['ditto'] = 'False'
+                            else:
+                                pokemon['ditto'] = 'unknown'
+#{              
+#  "ditto": false, 
+#  "success": true
+#}              
+                        except KeyError:
+                            pokemon['ditto'] = "unknown"
+                    except Exception:
+                        pokemon['ditto'] = "unknown"
+                        self.log.exception('PGScout catch ditto Request Error.')
+                self.log.info("pgscout: pokemon: {}, CP:{}, IV:{}/{}/{}", 
+                            pokemon['pokemon_id'], pokemon['cp'],
+                          pokemon['individual_attack'], pokemon['individual_defense'], pokemon['individual_stamina']
+                          )
                 return True
             except KeyError:
                 self.log.error('Missing Pokemon data in PGScout response.')
@@ -1521,6 +1563,45 @@ class Worker:
             pokemon['gender'] = pdata.pokemon_display.gender
             pokemon['cp'] = pdata.cp
             pokemon['level'] = calc_pokemon_level(pdata.cp_multiplier)
+            pokemon['ditto'] = 'unknown'
+            iv = float(int(pokemon['individual_attack']) + int(pokemon['individual_defense']) + int(pokemon['individual_stamina'])) / 0.45
+            session = SessionManager.get()
+            dittomons = [16, 19, 41, 161, 163, 193]
+            id = pokemon['pokemon_id']
+            if (iv > 99.9) and id in dittomons:
+                self.log.info("catching mon to verify if it's a ditto...")
+                try:
+                    session = SessionManager.get()
+                    async with session.get(
+                          'http://127.0.0.1:' + conf.PGSCOUT_PORT_CATCHDITTO + '/ditto',
+                           params={'pokemon_id': id,
+                            'encounter_id': pokemon['encounter_id'],
+                            'spawn_point_id': spawn_id,
+                            'latitude': str(pokemon['lat']),
+                            'longitude': str(pokemon['lon'])},
+                            timeout=conf.PGSCOUT_TIMEOUT) as resp:
+                        responsecatch = await resp.json(loads=json_loads)
+                    try:
+                        if (responsecatch['success'] == True):
+                            if (responsecatch['ditto'] == True):
+                                pokemon['ditto'] = 'True'
+                            else:
+                                pokemon['ditto'] = 'False'
+                        else:
+                            pokemon['ditto'] = 'unknown'
+#{
+#  "ditto": false, 
+#  "success": true
+#}
+                    except KeyError:
+                        pokemon['ditto'] = "unknown"
+                except Exception:
+                    pokemon['ditto'] = "unknown"
+                    self.log.exception('PGScout catch ditto Request Error.')
+            self.log.info("{}: pokemon: {}, CP:{}, IV:{}/{}/{}", 
+                          self.username, pokemon['pokemon_id'], pokemon['cp'],
+                          pokemon['individual_attack'], pokemon['individual_defense'], pokemon['individual_stamina']
+                          )
         except KeyError:
             self.log.error('Missing encounter response.')
             return False

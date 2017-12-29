@@ -872,16 +872,21 @@ class Notifier:
             score_required = 0
         else:
             score_required = self.get_required_score(now)
-
+        iv_score = 0.0
+        zero_iv = False
         try:
             iv_score = (pokemon['individual_attack'] + pokemon['individual_defense'] + pokemon['individual_stamina']) / 45
+            if (iv_score == 0.0):
+                zero_iv = True
         except KeyError:
             if conf.IGNORE_IVS:
-                iv_score = None
+                iv_score = 0.0 #None
             else:
                 self.log.warning('IVs are supposed to be considered but were not found.')
                 return False
 
+        if (((pokemon_id not in conf.ALWAYS_NOTIFY_IDS) or (iv_score*100 < conf.IV_FILTER[pokemon_id])) and (zero_iv == False)):
+            return False
         if score_required:
             if conf.IGNORE_RARITY:
                 score = iv_score
@@ -1211,6 +1216,7 @@ Attacks: {}/{}""".format(
                 "individual_defense": pokemon.get('individual_defense'),
                 "individual_stamina": pokemon.get('individual_stamina'),
                 "weather": pokemon.get('weather_boosted_condition'),
+                "ditto": pokemon.get('ditto')
             }
         }
 
