@@ -253,7 +253,7 @@ class FortCache:
     def __init__(self):
         self.gyms = {}
         self.internal_ids = {}
-        self.gym_names = {}
+        self.gym_info = {}
         self.pokestops = {}
         self.pokestop_names = {}
         self.sponsors = {}
@@ -270,8 +270,8 @@ class FortCache:
             del self.gyms[external_id]
         if external_id in self.internal_ids:
             del self.internal_ids[external_id]
-        if external_id in self.gym_names:
-            del self.gym_names[external_id]
+        if external_id in self.gym_info:
+            del self.gym_info[external_id]
 
     def __contains__(self, sighting):
         try:
@@ -300,7 +300,7 @@ class FortCache:
                 self.internal_ids[external_id] = fort_sighting.fort_id
                 self.sponsors[external_id] = fort.sponsor
                 if fort.name:
-                    self.gym_names[external_id] = (fort.name, fort.url)
+                    self.gym_info[external_id] = (fort.name, fort.url, fort.sponsor)
                 obj = {
                     'external_id': fort_sighting.fort.external_id,
                     'last_modified': fort_sighting.last_modified,
@@ -806,7 +806,7 @@ def add_fort_sighting(session, raw_fort):
 
     has_fort_name = ('name' in raw_fort and raw_fort['name'])
 
-    if external_id not in FORT_CACHE.gym_names and has_fort_name:
+    if external_id not in FORT_CACHE.gym_info and has_fort_name:
         session.query(Fort) \
                 .filter(Fort.id == internal_id) \
                 .update({
@@ -816,9 +816,9 @@ def add_fort_sighting(session, raw_fort):
 
     if (has_fort_name and
             (fort_updated or
-                external_id not in FORT_CACHE.gym_names or
-                FORT_CACHE.gym_names[external_id] == True)):
-        FORT_CACHE.gym_names[external_id] = (raw_fort['name'], raw_fort['url']) 
+                external_id not in FORT_CACHE.gym_info or
+                FORT_CACHE.gym_info[external_id] == True)):
+        FORT_CACHE.gym_info[external_id] = (raw_fort['name'], raw_fort['url'], raw_fort.get('sponsor')) 
     
     if sponsor != FORT_CACHE.sponsors.get(external_id):
         session.query(Fort) \

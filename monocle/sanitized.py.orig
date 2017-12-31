@@ -74,8 +74,11 @@ _valid_types = {
     'HIBERNATE_WEBHOOK': str,
     'HIBERNATE_WEBHOOK_MIN_LEVEL': Number,
     'ICONS_URL': str,
+<<<<<<< HEAD
     'IV_FILTER': dict,
+=======
     'EGG_ICONS_URL': str,
+>>>>>>> 6d36b8565b48ca8db353f1c00f3e6a358e29d092
     'GMAP_ICONS_URL': str,
     'GMAP_EGG_ICONS_URL': str,
     'IGNORE_IVS': bool,
@@ -245,8 +248,11 @@ _defaults = {
     'HIBERNATE_WEBHOOK': None,
     'HIBERNATE_WEBHOOK_MIN_LEVEL': 1,
     'ICONS_URL': "https://raw.githubusercontent.com/M4d40/my-po-icons/master/Original-Assets/{}.png",
+<<<<<<< HEAD
     'IV_FILTER': None,    
+=======
     'EGG_ICONS_URL': "https://raw.githubusercontent.com/M4d40/my-po-icons/master/Original-Assets/egg_{}.png",
+>>>>>>> 6d36b8565b48ca8db353f1c00f3e6a358e29d092
     'GMAP_ICONS_URL': "https://raw.githubusercontent.com/M4d40/my-po-icons/master/Original-Assets-16x16/{}.png",
     'GMAP_EGG_ICONS_URL': "https://raw.githubusercontent.com/M4d40/my-po-icons/master/Original-Assets-16x16/egg_{}.png",
     'IGNORE_IVS': False,

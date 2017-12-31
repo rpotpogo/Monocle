@@ -14,6 +14,7 @@ from flask import Flask, jsonify, Markup, render_template, request
 
 from monocle import db, sanitized as conf
 from monocle.names import POKEMON
+from monocle.utils import get_google_maps_key
 from monocle.web_utils import *
 from monocle.bounds import area, center
 
@@ -132,7 +133,7 @@ if conf.MAP_WORKERS:
 @app.route('/report')
 def report_main(area_name=conf.AREA_NAME,
                 names=POKEMON,
-                key=conf.GOOGLE_MAPS_KEY if conf.REPORT_MAPS else None):
+                key=get_google_maps_key() if conf.REPORT_MAPS else None):
     with db.session_scope() as session:
         counts = db.get_sightings_per_pokemon(session)
 
@@ -194,7 +195,7 @@ def report_main(area_name=conf.AREA_NAME,
 @app.route('/report/<int:pokemon_id>')
 def report_single(pokemon_id,
                   area_name=conf.AREA_NAME,
-                  key=conf.GOOGLE_MAPS_KEY if conf.REPORT_MAPS else None):
+                  key=get_google_maps_key() if conf.REPORT_MAPS else None):
     with db.session_scope() as session:
         session_stats = db.get_session_stats(session)
         js_data = {

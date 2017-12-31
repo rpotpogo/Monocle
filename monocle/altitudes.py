@@ -10,7 +10,7 @@ from cyrandom import uniform
 
 from . import bounds, sanitized as conf
 from .shared import get_logger, LOOP, run_threaded
-from .utils import dump_pickle, float_range, load_pickle, round_coords
+from .utils import dump_pickle, float_range, load_pickle, round_coords, get_google_maps_key
 
 
 class Altitudes:
@@ -46,7 +46,7 @@ class Altitudes:
             async with session.get(
                     'https://maps.googleapis.com/maps/api/elevation/json',
                     params={'locations': 'enc:' + polyencode(coords),
-                            'key': conf.GOOGLE_MAPS_KEY},
+                            'key': get_google_maps_key()},
                     timeout=10) as resp:
                 response = await resp.json(loads=json_loads)
             for r in response['results']:
@@ -62,7 +62,7 @@ class Altitudes:
         alt = self.altitudes[point]
         return randomize(alt - 2.5, alt + 2.5)
 
-    async def fetch(self, point, key=conf.GOOGLE_MAPS_KEY):
+    async def fetch(self, point, key=get_google_maps_key()):
         if not key:
             return self.fallback()
         try:

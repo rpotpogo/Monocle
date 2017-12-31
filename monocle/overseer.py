@@ -348,6 +348,11 @@ class Overseer:
         hours_since_start = seconds_since_start / 3600
 
         try:
+            percent_skip = (self.skipped * 100) // (self.visits + self.skipped)
+        except (ZeroDivisionError):
+            percent_skip = '?'
+
+        try:
             output = [
                 '{}Monocle/Monkey ({}) running for {}'.format(_ansi, conf.INSTANCE_ID, running_for),
                 self.counts,
@@ -357,10 +362,10 @@ class Overseer:
                  'Skipped: {} ({}%), unnecessary: {}').format(
                     self.visits, self.visits / seconds_since_start,
                     self.skipped,
-                    (self.skipped * 100) // (self.visits + self.skipped),
+                    percent_skip,
                     self.redundant)
             ]
-        except (AttributeError, ZeroDivisionError):
+        except (AttributeError):
             output = []
 
         try:

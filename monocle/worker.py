@@ -1124,7 +1124,7 @@ class Worker:
                             (priority_fort and
                                 priority_fort.id == fort.id)):
 
-                        needs_name = (conf.GYM_NAMES and (fort.id not in FORT_CACHE.gym_names))
+                        needs_name = (conf.GYM_NAMES and (fort.id not in FORT_CACHE.gym_info))
                         needs_defenders = conf.GYM_DEFENDERS
 
                         if needs_name or needs_defenders:

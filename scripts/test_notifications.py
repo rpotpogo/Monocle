@@ -24,7 +24,13 @@ parser = ArgumentParser()
 parser.add_argument(
     '-i', '--id',
     type=int,
-    help='Pokémon ID to notify about'
+    help='Pokemon ID to notify about'
+)
+parser.add_argument(
+    '-f', '--form',
+    type=int,
+    default=0,
+    help='Pokemon form to notify about'
 )
 parser.add_argument(
     '-lat', '--latitude',
@@ -93,6 +99,7 @@ pokemon = {
     'encounter_id': 93253523,
     'spawn_id': 3502935,
     'pokemon_id': pokemon_id,
+    'form': args.form,
     'time_till_hidden': tth,
     'lat': lat,
     'lon': lon,
