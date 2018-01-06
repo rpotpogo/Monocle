@@ -1,4 +1,5 @@
 import traceback
+from s2sphere import CellId, LatLng
 from asyncio import gather, Lock, Semaphore, sleep, CancelledError
 from collections import deque
 from time import time, monotonic
@@ -8,7 +9,6 @@ from sys import exit
 from math import ceil
 from distutils.version import StrictVersion
 from functools import lru_cache
-from s2sphere import CellId as S2CellId
 
 from aiohttp import ClientSession
 from aiopogo import PGoApi, HashServer, json_loads, exceptions as ex
@@ -304,7 +304,7 @@ class Worker:
 
     async def download_remote_config(self, version):
         request = self.api.create_request()
-        request.download_remote_config_version(platform=1, app_version=version)
+        request.download_remote_config_version(platform=1, device_model=self.account['model'], app_version=version)
         responses = await self.call(request, buddy=False, inbox=False, dl_hash=False)
 
         try:
@@ -358,9 +358,9 @@ class Worker:
         self.log.info('{} is starting RPC login sequence (iOS app simulation)', self.username)
 
         # empty request
-        request = self.api.create_request()
-        await self.call(request, settings=False, chain=False)
-        await self.random_sleep(.43, .97)
+        # request = self.api.create_request()
+        # await self.call(request, settings=False, chain=False)
+        # await self.random_sleep(.43, .97)
 
         # request 1: get_player
         tutorial_state = await self.get_player()
@@ -645,7 +645,7 @@ class Worker:
                     err = e
                     self.log.warning('{}', e)
                 self.error_code = 'INVALID REQUEST'
-                await self.random_sleep()
+                await self.random_sleep(0.9, 2.0)
             except ex.ProxyException as e:
                 if not isinstance(e, type(err)):
                     err = e
@@ -955,21 +955,24 @@ class Worker:
         seen_encounter = not encounter_id
         seen_gym = not gym
         gmo_success = True
+        weather_condition = 0
 
         scan_gym_external_id = gym.get('external_id') if gym else None
 
         if conf.ITEM_LIMITS and self.bag_items >= self.item_capacity:
             await self.clean_bag()
 
+            
         if map_objects.client_weather:
             for w in map_objects.client_weather:
                 weather = Weather.normalize_weather(w, map_objects.time_of_day)
+                weather_condition = weather['condition']
                 if weather not in WEATHER_CACHE:
                     db_proc.add(weather)
 
         for map_cell in map_objects.map_cells:
             request_time_ms = map_cell.current_timestamp_ms
-            cell_weather_id = S2CellId(map_cell.s2_cell_id).parent(10).id()
+            cell_weather_id = CellId(map_cell.s2_cell_id).parent(10).id()
             for pokemon in map_cell.wild_pokemons:
                 pokemon_seen += 1
                 if not self.in_bounds(pokemon.latitude, pokemon.longitude):
@@ -1107,7 +1110,12 @@ class Worker:
                         pokestop = self.normalize_pokestop(fort)
                         db_proc.add(pokestop)
                 else:
-                    normalized_fort = self.normalize_gym(fort)
+                    if fort.id not in FORT_CACHE.gyms or FORT_CACHE.gyms[fort.id]['weather_cell_id'] is None:
+                        fort_weather_cell = CellId.from_lat_lng(LatLng.from_degrees(fort.latitude,fort.longitude)).parent(10).id()
+                    else:
+                        fort_weather_cell = FORT_CACHE.gyms[fort.id]['weather_cell_id']
+
+                    normalized_fort = self.normalize_gym(fort, fort_weather_cell)
                     is_target_gym = (scan_gym_external_id == fort.id)
                     should_update_gym = is_target_gym
 
@@ -1117,7 +1125,6 @@ class Worker:
                     self.overseer.WorkerRaider.add_gym(normalized_fort)
 
                     if (scan_gym_external_id or not self.has_raiders) and fort not in FORT_CACHE:
-                        FORT_CACHE.add(normalized_fort)
                         should_update_gym = True
 
                     if (is_target_gym or
@@ -1141,7 +1148,7 @@ class Worker:
 
                     if fort.HasField('raid_info'):
                         if fort not in RAID_CACHE:
-                            normalized_raid = self.normalize_raid(fort)
+                            normalized_raid = self.normalize_raid(fort, WEATHER_CACHE[fort_weather_cell]['condition'])
                             RAID_CACHE.add(normalized_raid)
                             if normalized_raid['time_end'] > int(time()):
                                 if conf.NOTIFY_RAIDS:
@@ -1432,6 +1439,10 @@ class Worker:
     async def spin_pokestop(self, pokestop):
         self.error_code = '$'
         pokestop_location = pokestop.latitude, pokestop.longitude
+        
+        # randomize location up to ~1.5 meters
+        self.simulate_jitter(amount=0.00001)
+        
         distance = get_distance(self.location, pokestop_location)
         # permitted interaction distance - 4 (for some jitter leeway)
         # estimation of spinning speed limit
@@ -1439,8 +1450,6 @@ class Worker:
             self.error_code = '!'
             return False
 
-        # randomize location up to ~1.5 meters
-        self.simulate_jitter(amount=0.00001)
         #adding a short sleep period increases spinning success 
         await self.random_sleep(0.8, 1.8)
 
@@ -1752,7 +1761,7 @@ class Worker:
 
     def simulate_jitter(self, amount=0.00002):
         '''Slightly randomize location, by up to ~3 meters by default.'''
-        self.location = randomize_point(self.location)
+        self.location = randomize_point(self.location, amount=amount)
         self.altitude = uniform(self.altitude - 1, self.altitude + 1)
         self.api.set_position(*self.location, self.altitude)
 
@@ -1996,7 +2005,7 @@ class Worker:
         }
 
     @staticmethod
-    def normalize_gym(raw):
+    def normalize_gym(raw, s2cellID):
         return {
             'type': 'fort',
             'external_id': raw.id,
@@ -2011,10 +2020,11 @@ class Worker:
             'name': None,
             'url': None,
             'gym_defenders': [],
+            'weather_cell_id': s2cellID & 0xffffffffffffffff
         }
 
     @staticmethod
-    def normalize_raid(raw):
+    def normalize_raid(raw, weather):
         obj = {
             'type': 'raid',
             'external_id': raw.raid_info.raid_seed,
@@ -2029,6 +2039,7 @@ class Worker:
             'cp': 0,
             'move_1': 0,
             'move_2': 0,
+            'weather' : weather
         }
         if raw.raid_info.HasField('raid_pokemon'):
             obj['pokemon_id'] = raw.raid_info.raid_pokemon.pokemon_id

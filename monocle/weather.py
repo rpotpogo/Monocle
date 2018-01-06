@@ -14,6 +14,9 @@ class WeatherCache:
 
     def __len__(self):
         return len(self.store)
+        
+    def __getitem__(self, index):
+        return self.store[index]
 
     def add(self, weather):
         self.store[weather['s2_cell_id']] = weather

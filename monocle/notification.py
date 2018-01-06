@@ -1095,6 +1095,7 @@ class Notifier:
                 m.get("gym_name", "gym_name"): gym_name,
                 m.get("gym_url", "gym_url"): gym_url,
                 m.get("sponsor", "sponsor"): sponsor,
+                m.get("weather", "weather"): raid['weather'],
             }
         }
 
