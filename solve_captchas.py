@@ -70,7 +70,14 @@ async def main():
             else:
                 lv30_captcha_queue.put(account)
 
-        activate_hash_server(conf.HASH_KEY)
+        if conf.GO_HASH:
+            hashkey = conf.GO_HASH_KEY
+        else:
+            hashkey = conf.HASH_KEY
+        activate_hash_server(hashkey,
+            go_hash=conf.GO_HASH,
+            hash_endpoint=conf.HASH_ENDPOINT,
+            gohash_endpoint=conf.GOHASH_ENDPOINT)
 
         driver = webdriver.Chrome()
         driver.set_window_size(803, 807)
@@ -123,7 +130,7 @@ async def main():
 
                 await sleep(.6)
 
-                request.download_remote_config_version(platform=1, app_version=8700)
+                request.download_remote_config_version(platform=1, app_version=8900)
                 request.check_challenge()
                 request.get_hatched_eggs()
                 request.get_inventory(last_timestamp_ms=account.get('inventory_timestamp', 0))
@@ -141,6 +148,7 @@ async def main():
                     print('No CAPTCHA was pending on {}.'.format(username))
                     put_account_queue(account)
                 else:
+                    print('Trying to solve {}.'.format(username))
                     if await solve_captcha(challenge_url, api, driver, timestamp):
                         account['time'] = time()
                         account['captcha'] = False

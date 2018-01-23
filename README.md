@@ -46,14 +46,16 @@ Since it uses [Leaflet](http://leafletjs.com/) for mapping, the appearance and d
   - displays key usage stats in real time
 
 ## Setting up
-1. Install Python 3.5 or later (3.6 is recommended)
+1. Install Python 3.5 or later
 2. `git clone --recursive https://github.com/Hydro74000/Monocle.git`
   * Optionally install a custom icon package from elsewhere
 3. Copy *config.example.py* to *monocle/config.py* and customize it with your location, database information, and any other relevant settings. The comments in the config example provide some information about the options.
 4. Fill in *accounts.example.csv* with your own accounts and save it as *accounts.csv*.
+5. Import your accounts to DB using `python3[.6] scripts/import_accounts.py accounts.csv`
   * You only need to fill in the usernames and passwords, the other columns will be generated for you if left blank.
-5. `pip3 install -r requirements.txt`
-  * Optionally `pip3 install` additional packages listed in optional-requirements
+  * Easir format is GoMan. No headers requiered on file, just put 1 account per line with format `user:pass`
+5. `pip3[.6] install -r requirements.txt`
+  * Optionally `pip3[.6] install` additional packages listed in optional-requirements
     * *asyncpushbullet* is required for PushBullet notifications
     * *peony-twitter* is required for Twitter notifications
     * *gpsoauth* is required for logging in to Google accounts
@@ -67,9 +69,9 @@ Since it uses [Leaflet](http://leafletjs.com/) for mapping, the appearance and d
     * *cchardet* and *aiodns* provide better performance with aiohttp
     * *sanic* and *asyncpg* (and a Postgres DB) are required for web_sanic
     * *ujson* for better JSON encoding and decoding performance
-6. Run `python3 scripts/create_db.py` from the command line
-7. Run `python3 scan.py`
-  * Optionally run the live map interface and reporting system: `python3 web.py`
+6. Run `alembic upgrade head` from the command line to build DB
+7. Run `python3[.6] scan.py`
+  * Optionally run the live map interface and reporting system: `python3[.6] web.py`
 
 
 **Note**: Monocle works with Python 3.5 or later only. Python 2.7 is **not supported** and is not compatible at all since I moved from threads to coroutines. Seriously, it's 2017, Python 2.7 hasn't been developed for 6 years, why don't you upgrade already?

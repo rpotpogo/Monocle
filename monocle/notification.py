@@ -1072,8 +1072,9 @@ class Notifier:
 
         if raid['fort_external_id'] in FORT_CACHE.gym_info:
             gym_name, gym_url, sponsor = FORT_CACHE.gym_info[raid['fort_external_id']]
+            park = FORT_CACHE.park[raid['fort_external_id']]
         else:
-            gym_name, gym_url, sponsor = None, None, None
+            gym_name, gym_url, sponsor, park = None, None, None, None
 
         m = conf.WEBHOOK_RAID_MAPPING
         data = {
@@ -1096,6 +1097,7 @@ class Notifier:
                 m.get("gym_url", "gym_url"): gym_url,
                 m.get("sponsor", "sponsor"): sponsor,
                 m.get("weather", "weather"): raid['weather'],
+                m.get("park","park"): park,
             }
         }
 

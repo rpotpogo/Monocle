@@ -169,6 +169,8 @@ class Worker:
         self.pokestops = conf.SPIN_POKESTOPS
         self.next_spin = 0
         self.handle = HandleStub()
+        self.next_encounter_delay = 0.25
+        self.last_encounter = int(round(time() * 1000))
 
     def needs_sleep(self):
         return True 
@@ -260,7 +262,7 @@ class Worker:
             raise err
 
         self.error_code = '°'
-        version = 8700
+        version = 8900
         async with self.sim_semaphore:
             self.error_code = 'APP SIMULATION'
             if conf.APP_SIMULATION:
@@ -687,9 +689,9 @@ class Worker:
             else:
                 if (not dl_hash
                         and conf.FORCED_KILL
-                        and dl_settings.settings.minimum_client_version != '0.87.5'):
+                        and dl_settings.settings.minimum_client_version != '0.89.1'):
                     forced_version = StrictVersion(dl_settings.settings.minimum_client_version)
-                    if forced_version > StrictVersion('0.87.5'):
+                    if forced_version > StrictVersion('0.89.1'):
                         err = '{} is being forced, exiting.'.format(forced_version)
                         self.log.error(err)
                         print(err)
@@ -1541,6 +1543,13 @@ class Worker:
         if self.needs_sleep():
             await self.random_sleep(delay_required, delay_required + 1.5)
 
+        wait_encounter = ((self.last_encounter + (self.next_encounter_delay*1000)) - int(round(time() * 1000)))/1000
+
+        if wait_encounter > 0:
+            self.log.debug('Last encounter for {} was at {}. Current time is {}. Wait time is {}ms', self.username, self.last_encounter,
+                           int(round(time() * 1000)), wait_encounter)
+            await sleep(wait_encounter, loop=LOOP)
+
         request = self.api.create_request()
         request = request.encounter(encounter_id=pokemon['encounter_id'],
                                     spawn_point_id=spawn_id,
@@ -1548,6 +1557,13 @@ class Worker:
                                     player_longitude=self.location[1])
 
         responses = await self.call(request, action=2.25)
+
+        if wait_encounter < 0:
+           self.next_encounter_delay = 0.15 + (wait_encounter + 0.1) if (wait_encounter + 0.1) > 0 else 0.15
+        elif self.next_encounter_delay < 0.5:
+            self.next_encounter_delay += 0.1
+        else:
+            self.next_encounter_delay = 0.15
 
         try:
             encounter = responses.get('ENCOUNTER')
@@ -1620,6 +1636,10 @@ class Worker:
             self.log.error("Unexpected error during encounter: {}", e)
             raise e
         self.error_code = '!'
+
+        self.last_encounter = int(round(time() * 1000))
+        self.log.debug('Next encounter delay for {} has been set to {}. Last encounter is now {}', self.username, self.next_encounter_delay,
+                       self.last_encounter)
         return True
 
     async def clean_bag(self):

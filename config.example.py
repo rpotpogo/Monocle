@@ -27,6 +27,9 @@ SCAN_DELAY = 10       # wait at least this many seconds before scanning with the
 SPEED_UNIT = 'miles'  # valid options are 'miles', 'kilometers', 'meters'
 SPEED_LIMIT = 19.5    # limit worker speed to this many SPEED_UNITs per hour
 
+##If true, will query OSM to determine if gym is in a park
+#PARK_CHECK = True
+
 # The number of simultaneous workers will be these two numbers multiplied.
 # On the initial run, workers will arrange themselves in a grid across the
 # rectangle you defined with MAP_START and MAP_END.
@@ -65,12 +68,11 @@ GRID = (4, 4)  # rows, columns
 ### Do GMO requests for lv30 accounts.
 ### Setting False will increase encounter rate and reduce hashing usage as it will apply insta-teleport encounter.
 ### Setting True will reduce account ban risks as it will apply normal Monocle behavior.
-### Default True.
-#LV30_GMO = True
+### Default False.
+#LV30_GMO = False
 
 ### Maximum speed for lv30 accounts in SPEED_UNIT/hr.
-### Defaults to 745.6454 miles/hr (1200 km/hr) hypothetical hyperloop speed.
-### Set it to 0.0 to disable.
+### Defaults to 0.0 (disabled).
 ### When disabled, worker will not take any traveling time to encounter. (insta-teleport activated!)
 #LV30_MAX_SPEED = 745.6454
 
@@ -163,6 +165,13 @@ SEARCH_SLEEP = 2.5
 #
 ### Buddyauth endpoint
 #HASH_ENDPOINT="http://pokehash.buddyauth.com"
+#
+### Gohash config
+#
+#Set it to True to use GOHASH
+#GO_HASH = False
+#
+#GO_HASH_KEY = 'YOURGOHASHKEY' # edit with your Gohash key
 #
 ### Gohash endpoint 
 #GOHASH_ENDPOINT="http://hash.gomanager.biz"
@@ -757,7 +766,7 @@ MINIMUM_SCORE = 0.4  # the required score after FULL_TIME seconds have passed
 
 ### Shadown ban module
 #SB_DETECTOR = False
-#SB_COMMON_POKEMON_IDS = (16,23,27,29,32,41,43,46,52,54,60,69,77,81,98,118,120,129,161,165,177,183,187,191,194,198,209,218,320,325,339)
+#SB_COMMON_POKEMON_IDS = (16,19,23,27,29,32,43,46,52,54,60,69,77,81,98,118,120,129,177,183,187,191,194,209,218,320,325,339)
 #SB_MAX_ENC_MISS = 3           # Number of encounter misses before account is marked as sbanned
 #SB_MIN_SIGHTING_COUNT = 30    # Minimum sightings required to flag SB
 #SB_QUARANTINE_VISITS = 12     # Number of mininum visits needed to check if an account has seen any uncommon
