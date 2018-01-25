@@ -7,6 +7,7 @@ from cyrandom import shuffle
 from collections import deque
 from itertools import dropwhile
 from time import time, monotonic
+from threading import Thread
 
 from aiopogo import HashServer
 from sqlalchemy.exc import OperationalError
@@ -22,6 +23,8 @@ from .worker30 import Worker30, ENCOUNTER_CACHE
 from .worker_raider import WorkerRaider
 from .notification import Notifier
 from .weather import Weather 
+from .parks import Parks
+
 
 ANSI = '\x1b[2J\x1b[H'
 if platform == 'win32':
@@ -354,7 +357,7 @@ class Overseer:
 
         try:
             output = [
-                '{}Monocle/Monkey ({}) running for {}'.format(_ansi, conf.INSTANCE_ID, running_for),
+                '{}Monocle/Alternate ({}) running for {}'.format(_ansi, conf.INSTANCE_ID, running_for),
                 self.counts,
                 self.stats,
                 self.pokemon_found,
@@ -602,8 +605,12 @@ class Overseer:
         shuffle(unknowns)
         tasks = (self.try_again(point) for point in unknowns)
         await gather(*tasks, loop=LOOP)
-        self.log.warning('Finished bootstrapping.')
+        self.log.warning('Finished bootstrapping. Updating gym parks')
         LOOP.create_task(notifier.scan_log_webhook('Bootstrap Status Change', 'Finished bootstrapping.', '65300'))
+        with Parks() as parks:
+            parks_thread = Thread(target=parks.load)
+            parks_thread.start()
+        self.bootstrapping = False 
 
     async def bootstrap_one(self):
         async def visit_release(worker, num, *args):

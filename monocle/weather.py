@@ -16,7 +16,10 @@ class WeatherCache:
         return len(self.store)
         
     def __getitem__(self, index):
-        return self.store[index]
+        try:
+            return self.store[index]
+        except:
+            return None
 
     def add(self, weather):
         self.store[weather['s2_cell_id']] = weather
@@ -72,6 +75,7 @@ class Weather(db.Base):
     
         weather = session.query(Weather) \
             .filter(Weather.s2_cell_id == s2_cell_id) \
+            .with_for_update() \
             .first()
         if not weather:
             weather = Weather(
@@ -90,5 +94,17 @@ class Weather(db.Base):
             weather.day = raw_weather['day']
             weather.updated = int(time())
         WEATHER_CACHE.add(raw_weather)
+
+    @classmethod
+    def has_weather_changed(self, current_weather):
+        try:
+            if not current_weather:
+                return False
+            elif not WEATHER_CACHE[current_weather['s2_cell_id']]:
+                return True
+            previous_weather = WEATHER_CACHE[current_weather['s2_cell_id']]
+            return (previous_weather['condition'] != current_weather['condition'])
+        except KeyError:
+            return False
 
 WEATHER_CACHE = WeatherCache()

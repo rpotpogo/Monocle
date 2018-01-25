@@ -19,6 +19,7 @@ from logging.handlers import RotatingFileHandler
 from os.path import exists, join
 from sys import platform
 from time import monotonic, sleep
+from threading import Thread, enumerate as ThreadEnum, main_thread
 
 from sqlalchemy.exc import DBAPIError
 from aiopogo import close_sessions, activate_hash_server
@@ -30,6 +31,7 @@ from monocle.overseer import Overseer
 from monocle.db import FORT_CACHE, SIGHTING_CACHE
 from monocle.accounts import AccountQueue, CaptchaAccountQueue, Lv30AccountQueue, get_accounts, get_accounts30
 from monocle import altitudes, db_proc, spawns
+from monocle.parks import *
 
 
 class AccountManager(BaseManager):
@@ -94,6 +96,12 @@ def parse_args():
         dest='signature',
         help='This flag does nothing. Only serves for easy monitoring of processes.',
         default=''
+    )
+    parser.add_argument(
+        '--parks',
+        dest='parks',
+        help='Force parks refresh',
+        action='store_true'
     )
     return parser.parse_args()
 
@@ -206,6 +214,14 @@ def main():
 
     overseer = Overseer(manager)
     overseer.start(args.status_bar)
+    with Parks() as parks:
+        if args.parks:
+            log.info('parks flag found. Refreshing all parks and gyms.')
+            parks_thread = Thread(target=parks.fetch_all_parks)
+        else:
+            parks_thread = Thread(target=parks.load)
+        parks_thread.start()
+
     launcher = LOOP.create_task(overseer.launch(args.bootstrap, args.pickle))
     
     if conf.GO_HASH:

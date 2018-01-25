@@ -1,4 +1,5 @@
 import traceback
+
 from s2sphere import CellId, LatLng
 from asyncio import gather, Lock, Semaphore, sleep, CancelledError
 from collections import deque
@@ -25,6 +26,7 @@ from .accounts import Account, get_accounts, InsufficientAccountsException, Logi
 from . import altitudes, avatar, bounds, db_proc, spawns, sanitized as conf
 from .notification import Notifier
 from .weather import WEATHER_CACHE, Weather
+from .parks import *
 
 from python_anticaptcha import AnticaptchaClient, NoCaptchaTaskProxylessTask
 from python_anticaptcha.exceptions import AnticatpchaException
@@ -970,6 +972,8 @@ class Worker:
                 weather = Weather.normalize_weather(w, map_objects.time_of_day)
                 weather_condition = weather['condition']
                 if weather not in WEATHER_CACHE:
+                    if conf.NOTIFY_WEATHER and Weather.has_weather_changed(weather):
+                        LOOP.create_task(self.notifier.webhook_weather(weather))
                     db_proc.add(weather)
 
         for map_cell in map_objects.map_cells:
@@ -983,6 +987,7 @@ class Worker:
                 normalized = self.normalize_pokemon(pokemon, username=self.username)
                 normalized['time_of_day'] = map_objects.time_of_day
                 normalized['weather_cell_id'] = cell_weather_id
+                normalized['weather'] = weather_condition
                 seen_target = seen_target or normalized['spawn_id'] == spawn_id
                 seen_encounter = seen_encounter or normalized['encounter_id'] == encounter_id
 
@@ -1112,7 +1117,12 @@ class Worker:
                         pokestop = self.normalize_pokestop(fort)
                         db_proc.add(pokestop)
                 else:
-                    if fort.id not in FORT_CACHE.gyms or FORT_CACHE.gyms[fort.id]['weather_cell_id'] is None:
+                    try:
+                        gymexists = FORT_CACHE.gyms[fort.id]
+                    except KeyError:
+                        gymexists = False
+
+                    if not gymexists or FORT_CACHE.gyms[fort.id]['weather_cell_id'] is None:
                         fort_weather_cell = CellId.from_lat_lng(LatLng.from_degrees(fort.latitude,fort.longitude)).parent(10).id()
                     else:
                         fort_weather_cell = FORT_CACHE.gyms[fort.id]['weather_cell_id']
@@ -1120,6 +1130,22 @@ class Worker:
                     normalized_fort = self.normalize_gym(fort, fort_weather_cell)
                     is_target_gym = (scan_gym_external_id == fort.id)
                     should_update_gym = is_target_gym
+
+                    if gymexists:
+                            try:
+                                normalized_fort["park"] = FORT_CACHE.park[fort.id]
+                            except KeyError:
+                                with Parks() as parks:
+                                    parkinfo = parks.check_in_park(normalized_fort['lat'], normalized_fort['lon'])
+                                    if parkinfo:
+                                        normalized_fort["park"] = parkinfo['name']
+                                        normalized_fort["parkid"] = parkinfo['id']
+                    else:
+                        with Parks() as parks:
+                            parkinfo = parks.check_in_park(normalized_fort['lat'], normalized_fort['lon'])
+                            if parkinfo:
+                                normalized_fort["park"] = parkinfo['name']
+                                normalized_fort["parkid"] = parkinfo['id']
 
                     if is_target_gym:
                         seen_gym = True
@@ -1150,7 +1176,11 @@ class Worker:
 
                     if fort.HasField('raid_info'):
                         if fort not in RAID_CACHE:
-                            normalized_raid = self.normalize_raid(fort, WEATHER_CACHE[fort_weather_cell]['condition'])
+                            if WEATHER_CACHE[fort_weather_cell] != None:
+                                weather_cond = WEATHER_CACHE[fort_weather_cell]['condition']
+                            else:
+                                weather_cond = 0
+                            normalized_raid = self.normalize_raid(fort, weather_cond)
                             RAID_CACHE.add(normalized_raid)
                             if normalized_raid['time_end'] > int(time()):
                                 if conf.NOTIFY_RAIDS:
@@ -2039,6 +2069,7 @@ class Worker:
             'slots_available': raw.gym_display.slots_available,
             'name': None,
             'url': None,
+            'total_cp': raw.gym_display.total_gym_cp,
             'gym_defenders': [],
             'weather_cell_id': s2cellID & 0xffffffffffffffff
         }
@@ -2071,12 +2102,14 @@ class Worker:
     @staticmethod
     def normalize_gym_defender(raw):
         pokemon = raw.motivated_pokemon.pokemon
+        trainer = raw.trainer_public_profile
 
         obj = {
             'type': 'gym_defender',
             'external_id': pokemon.id,
             'pokemon_id': pokemon.pokemon_id,
             'owner_name': pokemon.owner_name,
+            'owner_level': trainer.level,
             'nickname': pokemon.nickname,
             'cp': pokemon.cp,
             'stamina': pokemon.stamina,

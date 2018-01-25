@@ -25,16 +25,17 @@ except AssertionError:
 log = get_logger(__name__)
 
 if conf.DB_ENGINE.startswith('mysql'):
-    from sqlalchemy.dialects.mysql import TINYINT, MEDIUMINT, BIGINT, DOUBLE
+    from sqlalchemy.dialects.mysql import TINYINT, MEDIUMINT, BIGINT, DOUBLE, LONGTEXT
 
     TINY_TYPE = TINYINT(unsigned=True)          # 0 to 255
     MEDIUM_TYPE = MEDIUMINT(unsigned=True)      # 0 to 4294967295
     UNSIGNED_HUGE_TYPE = BIGINT(unsigned=True)           # 0 to 18446744073709551615
     HUGE_TYPE = BigInteger
     PRIMARY_HUGE_TYPE = HUGE_TYPE 
-    FLOAT_TYPE = DOUBLE(precision=17, scale=14, asdecimal=False)
+    FLOAT_TYPE = DOUBLE(precision=18, scale=14, asdecimal=False)
+    LONG_TEXT = LONGTEXT
 elif conf.DB_ENGINE.startswith('postgres'):
-    from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION
+    from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, TEXT
 
     class NumInt(TypeDecorator):
         '''Modify Numeric type for integers'''
@@ -60,6 +61,7 @@ elif conf.DB_ENGINE.startswith('postgres'):
     HUGE_TYPE = BigInteger
     PRIMARY_HUGE_TYPE = HUGE_TYPE 
     FLOAT_TYPE = DOUBLE_PRECISION(asdecimal=False)
+    LONG_TEXT = TEXT
 else:
     class TextInt(TypeDecorator):
         '''Modify Text type for integers'''
@@ -314,6 +316,7 @@ class FortCache:
                 }
                 self.add(obj)
             log.info("Preloaded {} fort_sightings ", len(self))
+            log.info("Preloaded {} fort parks", len(self.park))
 
             pokestops = session.query(Pokestop) \
                 .filter(Pokestop.lat.between(bounds.south, bounds.north),
@@ -473,6 +476,7 @@ class Fort(Base):
     sponsor = Column(SmallInteger)
     weather_cell_id = Column(UNSIGNED_HUGE_TYPE)
     park = Column(String(128))
+    parkid = Column(HUGE_TYPE)
 
     sightings = relationship(
         'FortSighting',
@@ -808,12 +812,12 @@ def add_fort_sighting(session, raw_fort):
     external_id = raw_fort['external_id']
     internal_id = get_fort_internal_id(session, external_id)
     sponsor = raw_fort.get('sponsor')
-    park = get_park(session, external_id)
+    park = raw_fort.get('park')
+    parkid = raw_fort.get('parkid')
 
     fort_updated = False
 
     if not internal_id:
-        park=check_in_park(raw_fort)
         fort = Fort(
             external_id=raw_fort['external_id'],
             lat=raw_fort['lat'],
@@ -823,6 +827,7 @@ def add_fort_sighting(session, raw_fort):
             sponsor=raw_fort.get('sponsor'),
             weather_cell_id=raw_fort.get('weather_cell_id'),
             park=park,
+            parkid=parkid
         )
         session.add(fort)
         session.flush()
@@ -866,15 +871,6 @@ def add_fort_sighting(session, raw_fort):
                 .update({'sponsor': sponsor})
         FORT_CACHE.sponsors[external_id] = sponsor
     
-    if not park:
-        park=check_in_park(raw_fort)
-        log.info("Found park {} for Gym: {}", park, raw_fort['name'])
-        session.query(Fort) \
-                .filter(Fort.id == internal_id) \
-                .update({'park': park})
-        FORT_CACHE.park[external_id] = park
-        fort_updated = True
-
     if 'gym_defenders' in raw_fort and len(raw_fort['gym_defenders']) > 0:
         add_gym_defenders(session, internal_id, raw_fort['gym_defenders'], raw_fort)
 
@@ -1293,19 +1289,3 @@ def get_all_spawn_coords(session, pokemon_id=None):
         points = points.filter(Sighting.expire_timestamp > SINCE_TIME)
     return points.all()
 
-def check_in_park(fort):
-    api = overpy.Overpass()
-    api.max_retry_count = 3
-    try:
-        result = api.query("""
-            [out:json];
-            is_in({},{});
-            area._[~"^leisure$|^landuse$|^natural$"~"^park$|^recreation_ground$|^pitch$|^garden$|^golf_course$|^playground$|^meadow$|^grass$|^greenfield$|^scrub$|^grassland$|^farmyard$|^vineyard$|^heath$"];
-            out;
-            """.format(fort['lat'],fort['lon']))
-        if len(result.areas)>0:
-            return result.areas[0].tags["name"]
-        else:
-            return "None"
-    except:
-        return

@@ -6,6 +6,7 @@ from pkg_resources import resource_stream
 from tempfile import TemporaryFile
 from asyncio import gather, CancelledError, TimeoutError, Lock
 from base64 import b64encode
+from s2sphere import Cell, CellId, LatLng
 
 from aiohttp import ClientError, ClientResponseError, ServerTimeoutError
 from aiopogo import json_dumps, json_loads
@@ -18,6 +19,10 @@ from .utils import (
     get_applemaps_link,
     get_google_maps_key
 )
+from .web_utils import (
+    get_vertex
+)
+
 from .db import session_scope, get_gym, get_pokemon_ranking, estimate_remaining_time, FORT_CACHE
 from .names import MOVES, POKEMON
 from .shared import get_logger, SessionManager, LOOP, run_threaded
@@ -1043,24 +1048,29 @@ class Notifier:
         else:
             return self.cleanup(unique_id, cache_handle)
 
-    async def webhook_gym(self, fort):
+
+    async def webhook_weather(self, weather):
         if not WEBHOOK:
             return
 
-        if fort["name"] != None:
-            data = {
-                'type': "gym",
-                'message' : {
-                    'id': fort["external_id"],
-                    'team': fort["team"],
-                    'guard_pokemon_id': fort["guard_pokemon_id"],
-                    'latitude': fort["lat"],
-                    'longitude': fort["lon"],
-                    'name': fort["name"],
-                    'url': fort['url']
-                }
+        cell = Cell(CellId(weather['s2_cell_id']))
+        coords = []
+        for v in range(0,4):
+            vertex = LatLng.from_point(cell.get_vertex(v))
+            coords.append([vertex.lat().degrees,vertex.lng().degrees])
+        data = {
+            'type': "weather",
+            'message': {
+                "s2_cell_id": weather['s2_cell_id'],
+                "coords": coords,
+                "condition": weather['condition'],
+                "alert_severity": weather['alert_severity'],
+                "warn": weather['warn'],
+                "day": weather['day'],
+                "time_changed": int(time()),
             }
-            self.log.info("Notifying gym Name = {}, team = {}", fort["name"], fort["team"])
+        }
+
         result = await self.wh_send(SessionManager.get(), data)
         self.last_notification = monotonic()
         self.sent += 1
@@ -1075,6 +1085,9 @@ class Notifier:
             park = FORT_CACHE.park[raid['fort_external_id']]
         else:
             gym_name, gym_url, sponsor, park = None, None, None, None
+
+        if park == 'None': park = None
+        if sponsor == 0: sponsor = None
 
         m = conf.WEBHOOK_RAID_MAPPING
         data = {
@@ -1101,6 +1114,38 @@ class Notifier:
             }
         }
 
+        result = await self.wh_send(SessionManager.get(), data)
+        self.last_notification = monotonic()
+        self.sent += 1
+        return result
+		
+    async def webhook_gym(self, fort, gym=None):
+        if not WEBHOOK:
+            return
+        if fort['external_id'] in FORT_CACHE.gym_info:
+            gym_name, gym_url, sponsor = FORT_CACHE.gym_info[fort['external_id']]
+        else:
+            gym_name, gym_url, sponsor = None, None, None
+
+        m = conf.WEBHOOK_GYM_MAPPING
+        data = {
+            'type': "gym",
+            'message': {
+                m.get("gym_id", "gym_id"): fort['external_id'],
+                m.get("latitude", "latitude"): fort['lat'],
+                m.get("longitude", "longitude"): fort['lon'],
+                m.get("team", "team"): fort['team'],
+                m.get("guard_pokemon_id", "guard_pokemon_id"): fort['guard_pokemon_id'],
+                m.get("last_modified", "last_modified"): fort['last_modified'],
+                m.get("is_in_battle", "is_in_battle"): fort['is_in_battle'],
+                m.get("slots_available", "slots_available"): fort['slots_available'],
+                m.get("name", "name"): gym_name,
+                m.get("url", "url"): gym_url,
+                m.get("gym_defenders", "gym_defenders"): fort['gym_defenders'],
+                m.get("total_cp", "total_cp"): fort['total_cp'],
+
+            }
+        }
         result = await self.wh_send(SessionManager.get(), data)
         self.last_notification = monotonic()
         self.sent += 1
@@ -1368,7 +1413,8 @@ Attacks: {}/{}""".format(
                 "individual_attack": pokemon.get('individual_attack'),
                 "individual_defense": pokemon.get('individual_defense'),
                 "individual_stamina": pokemon.get('individual_stamina'),
-                "weather": pokemon.get('weather_boosted_condition'),
+                "boosted_weather": pokemon.get('weather_boosted_condition'),
+                "weather": pokemon.get('weather'),
                 "ditto": pokemon.get('ditto')
             }
         }

@@ -11,6 +11,7 @@ from enum import Enum
 from csv import DictReader
 from cyrandom import choice, shuffle, uniform
 from time import time
+from s2sphere import Cell as S2Cell, LatLng, CellId as S2CellId
 from pickle import dump as pickle_dump, load as pickle_load, HIGHEST_PROTOCOL
 
 from geopy import Point
@@ -295,3 +296,12 @@ class FlexibleSemaphore(Semaphore):
 
     def value(self):
         return self._value
+
+def get_vertex(cell, v):
+    vertex = LatLng.from_point(cell.get_vertex(v))
+    return (vertex.lat().degrees, vertex.lng().degrees)
+
+
+def get_s2_cell_as_polygon(lat, lon, level=12):
+    cell = S2Cell(S2CellId.from_lat_lng(LatLng.from_degrees(lat, lon)).parent(level))
+    return [(get_vertex(cell, v)) for v in range(0, 4)]
