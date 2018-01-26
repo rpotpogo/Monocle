@@ -193,6 +193,7 @@ _valid_types = {
     'UVLOOP': bool,
     'WEBHOOKS': set_sequence,
     'WEATHER_STATUS': dict,
+    'WEBHOOK_GYM_MAPPING': dict,
     'WEBHOOK_RAID_MAPPING': dict, 
 }
 
@@ -358,6 +359,7 @@ _defaults = {
     'TZ_OFFSET': None,
     'USE_ANTICAPTCHA': False,
     'UVLOOP': True,
+    'WEBHOOK_GYM_MAPPING': {},
     'WEBHOOKS': None,
     'WEATHER_STATUS': {0: "Not boosted", 1: "Clear", 2: "Rainy", 3: "Partly Cloudy",
         4: "Overcast", 5: "Windy", 6: "Snow", 7: "Fog"},

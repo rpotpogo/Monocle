@@ -132,11 +132,11 @@ class Parks():
                     # osm polygon can be a line
                     if len(coords) == 2:
                         shape = LineString(coords)
-                        if shape.within(gym_point) or cell.intersects(shape):
+                        if shape.within(cell.centroid):
                             return { 'id' : p['id'], 'name' : p['name'] }
                     if len(coords) > 2:
                         shape = Polygon(coords)
-                        if shape.contains(gym_point) or cell.intersects(shape):
+                        if shape.contains(cell.centroid):
                             return {'id': p['id'], 'name': p['name']}
             return None
 
@@ -152,19 +152,16 @@ class Parks():
                 rs = session.query(db.Fort).all()
 
                 for g in rs:
-                    should_update_gym = False
-                    park = self.check_in_park(g.lat, g.lon)
-                    if park and g.park != park['name']:
-                        newpark = {'name' : park['name'], 'id' : park['id'] }
-                        should_update_gym = True
-                    elif not park and g.park:
-                        newpark = {'name' : None, 'id' : None }
-                        should_update_gym = True
-                    if should_update_gym:
-                        session.query(db.Fort)\
-                            .filter(db.Fort.id == g.id)\
-                            .with_for_update() \
-                            .update({'park': newpark['name'], 'parkid' : newpark['id']})
+                    try:
+                        park = self.check_in_park(g.lat, g.lon)
+                        if park and g.park != park['name']:
+                            newpark = {'name' : park['name'], 'id' : park['id'] }
+                            session.query(db.Fort)\
+                                .filter(db.Fort.id == g.id)\
+                                .with_for_update() \
+                                .update({'park': newpark['name'], 'parkid' : newpark['id']})
+                    except Exception as e:
+                        self.log.warning('Moving on next gym. Error while updating a gym park : {}', e)
                 session.commit()
         except Exception as e:
             self.log.warning('Error while updating gym parks : {}', e)

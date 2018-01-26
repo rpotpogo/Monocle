@@ -8,7 +8,7 @@
 
 DB_ENGINE = 'sqlite:///db.sqlite'
 #DB_ENGINE = 'mysql://user:pass@localhost/monocle?charset=utf8mb4'  ## don't forget ?charset=utf8mb4 after your DB name !
-#DB_ENGINE = 'postgresql://user:pass@localhost/monocle
+#DB_ENGINE = 'postgresql://user:pass@localhost/monocle'
 
 ### DB queue/pool size settings
 ### These are to be used if you see errors relating to pool_size from sqlalchemy
@@ -733,7 +733,7 @@ MINIMUM_SCORE = 0.4  # the required score after FULL_TIME seconds have passed
 #    'name': 'name',
 #    'url': 'url',
 #    'gym_defenders': 'gym_defenders',
-#    'total_cp': 'total_cp,
+#    'total_cp': 'total_cp',
 #}
 #
 
