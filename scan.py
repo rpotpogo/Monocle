@@ -214,10 +214,11 @@ def main():
 
     overseer = Overseer(manager)
     overseer.start(args.status_bar)
+
     with Parks() as parks:
         if args.parks:
             log.info('parks flag found. Refreshing all parks and gyms.')
-            parks_thread = Thread(target=parks.fetch_all_parks)
+            parks_thread = Thread(target=parks.reset_parks)
         else:
             parks_thread = Thread(target=parks.load)
         parks_thread.start()

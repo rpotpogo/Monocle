@@ -4,45 +4,97 @@ from shapely.geometry import Polygon, Point, LineString
 import s2sphere
 from .bounds import north, south, east, west
 import json
-from sqlalchemy import Column
+from sqlalchemy import Column, or_, and_, delete, null
 from sqlalchemy.types import Integer, BigInteger, Boolean, SmallInteger
 from time import time
-from . import db, utils, sanitized as conf
+from . import db, utils, sanitized as conf 
 from .shared import get_logger, LOOP
 
 class Park(db.Base):
     __tablename__ = 'parks'
 
-    id = Column(db.HUGE_TYPE, primary_key=True)
+    id = Column(db.HUGE_TYPE)
     name = Column(db.String)
     coords = Column(db.String)
     updated = Column(Integer, default=time, onupdate=time)
+    instanceid = Column(db.String)
+    internalid = Column(Integer, primary_key=True, unique=True, autoincrement=True)
+
+    @classmethod
+    def remove_park(self, session, parkid=None):
+        try:
+            if not parkid:
+                self.delete_gym_park(session)
+                deleted = session.query(Park) \
+                .filter(or_(Park.instanceid == db.instance_id, Park.instanceid == None)) \
+                .delete()
+            else:
+                self.delete_gym_park(session, parkid)
+                deleted = session.query(Park) \
+                    .filter(or_(Park.instanceid == db.instance_id, Park.instanceid == None)) \
+                    .filter(Park.id == parkid) \
+                    .delete()
+            session.commit()
+            return deleted
+        except Exception as e:
+            raise e
+            return 0
+
+
+    @classmethod
+    def delete_gym_park(self, session, parkid=None):
+        try:
+            updated = False
+            if parkid:
+                gyms = session.query(db.Fort) \
+                      .filter(Fort.parkid == parkid) \
+                      .with_for_update()
+                if gyms:
+                    for gym in gyms:
+                        gym.park = null()
+                        gym.parkid = null()
+                    updated = True
+            else:
+                gyms = session.query(db.Fort) \
+                      .join(Park, and_(Park.instanceid == db.instance_id, db.Fort.parkid == Park.internalid)) \
+                      .all()
+                if gyms:
+                    for gym in gyms:
+                        gym.park = null()
+                        gym.parkid = null()
+                    updated=True
+            if updated:
+                session.commit()
+        except Exception as e:
+            raise e
 
 
     @classmethod
     def add_park(self, session, raw_park):
-
-        id = raw_park['id']
-        name = raw_park['name']
-        coords = raw_park['coords']
-
+#        try:
+        pid = raw_park['id']
+        pname = raw_park['name']
+        pcoords = raw_park['coords']
         park = session.query(Park) \
-            .filter(Park.id == id) \
+            .filter(Park.id == pid) \
+            .filter(Park.instanceid == db.instance_id) \
             .with_for_update() \
             .first()
         if not park:
             park = Park(
-                id=id,
-                name=name,
-                coords=json.dumps(coords),
-                updated=int(time())
+                id=pid,
+                name=pname,
+                coords=str(json.dumps(pcoords)),
+                instanceid=db.instance_id
             )
             session.add(park)
         else:
-            park.id = id
-            park.name = name
-            park.coords = coords
-            park.updated = int(time())
+            park.id = pid
+            park.name = pname
+            park.coords = str(json.dumps(pcoords))
+            park.instanceid = db.instance_id
+#        except Exception as e:
+#            self.log.error("Error while adding new park ID {} : {}", raw_park['id'], e)
 
 class Parks():
 
@@ -55,24 +107,40 @@ class Parks():
         self.PARKS_CACHE.preload()
         return self
 
-    def __exit__(self, *err):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    def fetch_all_parks(self):
-        self.log.info('Fetching all parks.')
-        parks = self.get_all_parks()
-        if len(parks) > 0:
-            with db.session_scope() as session:
-                for p in parks:
-                    if len(self.PARKS_CACHE) == 0 or p['id'] not in self.PARKS_CACHE:
-                        self.PARKS_CACHE.add(p)
-                        Park.add_park(session,p)
-                session.commit()
+    def reset_parks(self, standalone=False):
+#        try:
+        self.log.info('Resetting parks table for this instance.')
+        with db.session_scope() as session:
+            deleted = Park.remove_park(session, None)
+            session.commit()
+            self.log.info("{} parks deleted from db", deleted)
+        self.PARKS_CACHE.empty()
+        self.fetch_all_parks(standalone)
+#        except Exception as e:
+#            self.log.error("Error while rsetting parks : {}", e)
 
-            self.update_gyms()
-            self.log.info('Forts parks updated.')
-        else:
-            self.log.info('No parks found for your area.')
+    def fetch_all_parks(self, standalone=False):
+        if not standalone and not conf.PARK_CHECK:
+            self.log.info('Park check disabled in config')
+            return
+        try:
+            self.log.info('Fetching all parks.')
+            parks = self.get_all_parks()
+            if len(parks) > 0:
+                with db.session_scope() as session:
+                    for p in parks:
+                        if len(self.PARKS_CACHE) == 0 or p['id'] not in self.PARKS_CACHE:
+                            Park.add_park(session,p)
+                    session.commit()
+                self.update_gyms()
+                self.log.info('Forts parks updated.')
+            else:
+                self.log.info('No parks found for your area.')
+        except Exception as e:
+            self.log.error('Error while fetching parks : {}',e)
 
     def load(self):
         if len(self.PARKS_CACHE) == 0:
@@ -122,9 +190,7 @@ class Parks():
 
 
     def check_in_park(self, lat, lon):
-
         try:
-            gym_point = Point(lat, lon)
             cell = Polygon(self.get_s2_cell_as_polygon(lat, lon, 20))  # s2 lvl 20
             if len(self.PARKS_CACHE) > 0:
                 for p in self.PARKS_CACHE:
@@ -133,11 +199,11 @@ class Parks():
                     if len(coords) == 2:
                         shape = LineString(coords)
                         if shape.within(cell.centroid):
-                            return { 'id' : p['id'], 'name' : p['name'] }
+                            return { 'id' : p['id'], 'internal' : p['internal'], 'name' : p['name'] }
                     if len(coords) > 2:
                         shape = Polygon(coords)
                         if shape.contains(cell.centroid):
-                            return {'id': p['id'], 'name': p['name']}
+                            return {'id': p['id'], 'internal' : p['internal'], 'name': p['name']}
             return None
 
         except Exception as e:
@@ -147,6 +213,7 @@ class Parks():
 
     def update_gyms(self):
         self.log.info('Updating forts parks in DB.')
+        self.PARKS_CACHE.preload()
         try:
             with db.session_scope() as session:
                 rs = session.query(db.Fort).all()
@@ -155,11 +222,11 @@ class Parks():
                     try:
                         park = self.check_in_park(g.lat, g.lon)
                         if park and g.park != park['name']:
-                            newpark = {'name' : park['name'], 'id' : park['id'] }
-                            session.query(db.Fort)\
-                                .filter(db.Fort.id == g.id)\
+                            updated = session.query(db.Fort)\
+                                .filter(db.Fort.id == g.id) \
                                 .with_for_update() \
-                                .update({'park': newpark['name'], 'parkid' : newpark['id']})
+                                .update({'park': park['name'], 'parkid' : park['internal']})
+                            db.FORT_CACHE.park[g.id] = park['name']
                     except Exception as e:
                         self.log.warning('Moving on next gym. Error while updating a gym park : {}', e)
                 session.commit()
@@ -192,6 +259,9 @@ class ParksCache:
         except KeyError:
             pass
 
+    def empty(self):
+        self.store = {}
+
     def __contains__(self, index):
         try:
             park = self.store[index]
@@ -204,18 +274,21 @@ class ParksCache:
 
     def preload(self):
         try:
+            if len(self.store) > 0:
+                self.store = {}
             with db.session_scope() as session:
-                parks = session.query(Park)
+                parks = session.query(Park) \
+                        .filter(Park.instanceid == db.instance_id)
 
                 for park in parks:
                     obj = {
                         'id': park.id,
+                        'internal': park.internalid,
                         'name': park.name,
                         'coords': json.loads(park.coords),
                     }
                     self.add(obj)
-                self.log.info("Preloaded {} parks", parks.count())
+                self.log.info("Loaded {} parks for this instance", parks.count())
         except Exception as e:
             self.log.error('Error while preloading parks : {}', e)
-
 

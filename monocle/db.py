@@ -306,7 +306,8 @@ class FortCache:
                 external_id = fort.external_id
                 self.internal_ids[external_id] = fort_sighting.fort_id
                 self.sponsors[external_id] = fort.sponsor
-                self.park[external_id] = fort.park
+                if fort.park:
+                    self.park[external_id] = fort.park
                 if fort.name:
                     self.gym_info[external_id] = (fort.name, fort.url, fort.sponsor)
                 obj = {
@@ -335,6 +336,7 @@ SIGHTING_CACHE = SightingCache()
 MYSTERY_CACHE = MysteryCache()
 FORT_CACHE = FortCache()
 RAID_CACHE = RaidCache()
+instance_id = conf.INSTANCE_ID[-32:]
 
 Base = declarative_base()
 
@@ -797,23 +799,24 @@ def get_fort_internal_id(session, external_id):
         FORT_CACHE.internal_ids[external_id] = internal_id 
     return internal_id
 
-def get_park(session, external_id):
-    if external_id in FORT_CACHE.internal_ids and FORT_CACHE.park.get(external_id):
-        park = FORT_CACHE.park.get(external_id)
-    else:
-        park = session.query(Fort.park) \
+
+def get_fort_park(session, external_id):
+    if not(external_id in FORT_CACHE.internal_ids and FORT_CACHE.park.get(external_id)):
+        fortpark = session.query(Fort.park) \
             .filter(Fort.external_id == external_id) \
             .scalar()
-        FORT_CACHE.park[external_id] = park
-    return park
+        if fortpark:
+            FORT_CACHE.park[external_id] = fortpark
+
 
 def add_fort_sighting(session, raw_fort):
     # Check if fort exists
     external_id = raw_fort['external_id']
     internal_id = get_fort_internal_id(session, external_id)
     sponsor = raw_fort.get('sponsor')
-    park = raw_fort.get('park')
-    parkid = raw_fort.get('parkid')
+
+    if not FORT_CACHE.park.get(external_id):
+        get_fort_park(session, external_id)
 
     fort_updated = False
 
@@ -826,16 +829,14 @@ def add_fort_sighting(session, raw_fort):
             url=raw_fort.get('url'),
             sponsor=raw_fort.get('sponsor'),
             weather_cell_id=raw_fort.get('weather_cell_id'),
-            park=park,
-            parkid=parkid
         )
         session.add(fort)
         session.flush()
         internal_id = fort.id
         FORT_CACHE.internal_ids[external_id] = internal_id 
         FORT_CACHE.sponsors[external_id] = sponsor
-        FORT_CACHE.park[external_id] = park
         fort_updated = True
+
 
     if external_id not in FORT_CACHE.gyms:
         FORT_CACHE.add(raw_fort)

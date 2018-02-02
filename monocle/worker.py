@@ -26,7 +26,6 @@ from .accounts import Account, get_accounts, InsufficientAccountsException, Logi
 from . import altitudes, avatar, bounds, db_proc, spawns, sanitized as conf
 from .notification import Notifier
 from .weather import WEATHER_CACHE, Weather
-from .parks import *
 
 from python_anticaptcha import AnticaptchaClient, NoCaptchaTaskProxylessTask
 from python_anticaptcha.exceptions import AnticatpchaException
@@ -1131,22 +1130,6 @@ class Worker:
                     is_target_gym = (scan_gym_external_id == fort.id)
                     should_update_gym = is_target_gym
 
-                    if gymexists:
-                            try:
-                                normalized_fort["park"] = FORT_CACHE.park[fort.id]
-                            except KeyError:
-                                with Parks() as parks:
-                                    parkinfo = parks.check_in_park(normalized_fort['lat'], normalized_fort['lon'])
-                                    if parkinfo:
-                                        normalized_fort["park"] = parkinfo['name']
-                                        normalized_fort["parkid"] = parkinfo['id']
-                    else:
-                        with Parks() as parks:
-                            parkinfo = parks.check_in_park(normalized_fort['lat'], normalized_fort['lon'])
-                            if parkinfo:
-                                normalized_fort["park"] = parkinfo['name']
-                                normalized_fort["parkid"] = parkinfo['id']
-
                     if is_target_gym:
                         seen_gym = True
 
@@ -1183,6 +1166,8 @@ class Worker:
                             normalized_raid = self.normalize_raid(fort, weather_cond)
                             RAID_CACHE.add(normalized_raid)
                             if normalized_raid['time_end'] > int(time()):
+                                normalized_fort["park"] = FORT_CACHE.park.get(fort.id) if FORT_CACHE.park.get(fort.id) \
+                                    else ""
                                 if conf.NOTIFY_RAIDS:
                                     LOOP.create_task(self.notifier.notify_raid(normalized_raid, normalized_fort))
                                 if conf.NOTIFY_RAIDS_WEBHOOK:

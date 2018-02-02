@@ -1082,7 +1082,10 @@ class Notifier:
 
         if raid['fort_external_id'] in FORT_CACHE.gym_info:
             gym_name, gym_url, sponsor = FORT_CACHE.gym_info[raid['fort_external_id']]
-            park = FORT_CACHE.park[raid['fort_external_id']]
+            if FORT_CACHE.park.get(raid['fort_external_id']):
+                park = FORT_CACHE.park[raid['fort_external_id']]
+            else:
+                park = None
         else:
             gym_name, gym_url, sponsor, park = None, None, None, None
 

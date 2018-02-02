@@ -608,7 +608,7 @@ class Overseer:
         self.log.warning('Finished bootstrapping. Updating gym parks')
         LOOP.create_task(notifier.scan_log_webhook('Bootstrap Status Change', 'Finished bootstrapping.', '65300'))
         with Parks() as parks:
-            parks_thread = Thread(target=parks.load)
+            parks_thread = Thread(target=parks.reset_parks)
             parks_thread.start()
         self.bootstrapping = False 
 
