@@ -1779,7 +1779,9 @@ class Worker:
                 acclient = AnticaptchaClient(conf.CAPTCHA_KEY)
                 actask = NoCaptchaTaskProxylessTask(challenge_url, '6LeeTScTAAAAADqvhqVMhPpr_vB9D364Ia-1dSgK')
                 acjob = acclient.createTask(actask)
-                acjob.join()
+                token = None
+                while not acjob.check_is_ready():
+                    await sleep(5, loop=LOOP)
                 token = acjob.get_solution_response()
             except AnticatpchaException as e:
                 self.log.error('AntiCaptcha error: {}, {}', e.error_code, e.error_description)

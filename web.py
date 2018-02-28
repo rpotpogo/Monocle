@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
+from functools import wraps
 from pkg_resources import resource_filename
 
 try:
@@ -10,7 +11,7 @@ try:
 except ImportError:
     from json import dumps
 
-from flask import Flask, jsonify, Markup, render_template, request
+from flask import Flask, jsonify, Markup, render_template, request, make_response
 
 from monocle import db, sanitized as conf
 from monocle.names import POKEMON
@@ -20,6 +21,23 @@ from monocle.bounds import area, center
 
 
 app = Flask(__name__, template_folder=resource_filename('monocle', 'templates'), static_folder=resource_filename('monocle', 'static'))
+
+
+def auth_required(func):
+    @wraps(func)
+    def decorated(*args, **kwargs):
+        conf_args = get_args()
+        username = getattr(conf_args, 'username', '')
+        password = getattr(conf_args, 'password', '')
+        if not username:
+            return func(*args, **kwargs)
+        if request.authorization:
+            if (request.authorization.username == username) and (
+                    request.authorization.password == password):
+                return func(*args, **kwargs)
+        return make_response('Could not verify!', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+    return decorated
 
 
 def social_links():
@@ -76,42 +94,50 @@ def render_worker_map():
 
 
 @app.route('/')
+@auth_required
 def fullmap(map_html=render_map()):
     return map_html
 
 
 @app.route('/data')
+@auth_required
 def pokemon_data():
     last_id = request.args.get('last_id', 0)
     return jsonify(get_pokemarkers(last_id))
 
 
 @app.route('/raids')
+@auth_required
 def get_raids():
     return jsonify(get_raid_markers())
 
 
 @app.route('/weather')
+@auth_required
 def weather():
     return jsonify(get_weather())
 
 
 @app.route('/gym_data')
+@auth_required
 def gym_data():
     return jsonify(get_gym_markers())
 
 
 @app.route('/spawnpoints')
+@auth_required
 def spawn_points():
     return jsonify(get_spawnpoint_markers())
 
 
 @app.route('/pokestops')
+@auth_required
 def get_pokestops():
     return jsonify(get_pokestop_markers())
 
 
 @app.route('/scan_coords')
+@auth_required
 def scan_coords():
     return jsonify(get_scan_coords())
 
@@ -120,17 +146,20 @@ if conf.MAP_WORKERS:
     workers = Workers()
 
     @app.route('/workers_data')
+    @auth_required
     def workers_data():
         return jsonify(get_worker_markers(workers))
 
 
     @app.route('/workers')
+    @auth_required
     def workers_map(map_html=render_worker_map()):
         return map_html
 
 
 
 @app.route('/report')
+@auth_required
 def report_main(area_name=conf.AREA_NAME,
                 names=POKEMON,
                 key=get_google_maps_key() if conf.REPORT_MAPS else None):
@@ -193,6 +222,7 @@ def report_main(area_name=conf.AREA_NAME,
 
 
 @app.route('/report/<int:pokemon_id>')
+@auth_required
 def report_single(pokemon_id,
                   area_name=conf.AREA_NAME,
                   key=get_google_maps_key() if conf.REPORT_MAPS else None):
@@ -222,6 +252,7 @@ def report_single(pokemon_id,
 
 
 @app.route('/report/heatmap')
+@auth_required
 def report_heatmap():
     pokemon_id = request.args.get('id')
     with db.session_scope() as session:

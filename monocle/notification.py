@@ -1109,7 +1109,7 @@ class Notifier:
                 m.get("raid_end", "raid_end"): raid['time_end'],
                 m.get("gym_id", "gym_id"): raid["fort_external_id"],
                 m.get("base64_gym_id", "base64_gym_id"): b64encode(raid['fort_external_id'].encode('utf-8')),
-                m.get("gym_name", "gym_name"): gym_name,
+                m.get("name", "name"): gym_name,
                 m.get("gym_url", "gym_url"): gym_url,
                 m.get("sponsor", "sponsor"): sponsor,
                 m.get("weather", "weather"): raid['weather'],

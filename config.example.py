@@ -704,7 +704,7 @@ MINIMUM_SCORE = 0.4  # the required score after FULL_TIME seconds have passed
 ##   "external_id", "latitude", "longitude", "level", "pokemon_id",
 ##   "team", "cp", "move_1", "move_2",
 ##   "raid_begin", "raid_battle", "raid_end",
-##   "gym_id", "base64_gym_id", "gym_name", "gym_url"
+##   "gym_id", "base64_gym_id", "name", "gym_url"
 ##
 ## For PokeAlarm, no raid webhook config is needed since it is supported out of the box
 ## Note that you must set NOTIFY_GYMS_WEBHOOK to True in config in order to obtain gym names from PokeAlarm.
@@ -715,7 +715,6 @@ MINIMUM_SCORE = 0.4  # the required score after FULL_TIME seconds have passed
 #
 #WEBHOOK_RAID_MAPPING = {
 #    'raid_seed': 'external_id',
-#    'gym_name': 'name',
 #    'gym_url': 'url',
 #}
 #
@@ -786,7 +785,7 @@ MINIMUM_SCORE = 0.4  # the required score after FULL_TIME seconds have passed
 
 ### Shadown ban module
 #SB_DETECTOR = False
-#SB_COMMON_POKEMON_IDS = (16,19,23,27,29,32,43,46,52,54,60,69,77,81,98,118,120,129,177,183,187,191,194,209,218,293,304,320,325,339)
+#SB_COMMON_POKEMON_IDS = (16,19,23,27,29,32,43,46,52,54,60,69,77,81,98,118,120,129,177,183,187,191,194,209,218,293,304,320,325,333,339)
 #SB_MAX_ENC_MISS = 3           # Number of encounter misses before account is marked as sbanned
 #SB_MIN_SIGHTING_COUNT = 30    # Minimum sightings required to flag SB
 #SB_QUARANTINE_VISITS = 12     # Number of mininum visits needed to check if an account has seen any uncommon

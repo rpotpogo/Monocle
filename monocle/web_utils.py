@@ -42,6 +42,20 @@ def get_args():
         default=5000
     )
     parser.add_argument(
+        '-u',
+        '--username',
+        type=str,
+        help='Username for basic auth of frontend',
+        default=''
+    )
+    parser.add_argument(
+        '-p',
+        '--password',
+        type=str,
+        help='Password for basic auth of frontend',
+        default=''
+    )
+    parser.add_argument(
         '-d', '--debug', help='Debug Mode', action='store_true'
     )
     parser.set_defaults(debug=False)
