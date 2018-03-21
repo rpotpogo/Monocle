@@ -82,6 +82,8 @@ class Overseer:
         self.log.info('Overseer initialized')
         self.status_log_at = 0
         self.pokemon_found = ''
+        self.login_semaphore = Semaphore(conf.SIMULTANEOUS_LOGINS, loop=LOOP)
+        self.sim_semaphore = Semaphore(conf.SIMULTANEOUS_SIMULATION, loop=LOOP)
 
     def start(self, status_bar):
         self.captcha_queue = self.manager.captcha_queue()
